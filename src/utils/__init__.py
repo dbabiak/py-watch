@@ -9,6 +9,23 @@ def log(s: str):
     )
     print(now.time().isoformat()[:-3], '::', s)
 
+
+def fpath_to_module_name(s: str) -> str:
+    """
+    Turn a file path into a python import path (?)
+    """
+    s = s.lstrip('./')
+
+    if s.endswith('.py'):
+        s = s[:-len('.py')]
+
+    if s.endswith('/__init__'):
+        s = s[:-len('/__init__')]
+
+    return s.replace('/', '.')
+
+
 log(f'  {__name__} SLEEPING')
 sleep(0.5)
 log(f'  {__name__} IMPORTED')
+

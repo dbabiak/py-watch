@@ -1,11 +1,14 @@
-from datetime import datetime as dt
+import os
+from importlib import import_module, reload
 from time import sleep
 from typing import Dict
-from importlib import import_module, reload
+
+from utils import fpath_to_module_name
 
 
 def use_thing_from_both():
     from models.a import do_thing
+
     s = do_thing()
     return f"do_thing: {s}"
 
@@ -18,75 +21,79 @@ def get_mtimes(root: str) -> Dict[str, float]:
 
     mtimes_by_file = {}
 
-    for dirpath, dirnames, filenames in  os.walk(root):
-        for f in filenames:
-            fpath = os.path.join(dirpath, f)
-            if f.endswith('.py'):
-                mtime = os.path.getmtime(fpath)
-                mtimes_by_file[fpath] = mtime
+    with temp_cwd(root):
+        for dirpath, dirnames, filenames in os.walk('.'):
+            for f in filenames:
+                fpath = os.path.join(dirpath, f)
+                if f.endswith(".py"):
+                    mtime = os.path.getmtime(fpath)
+                    mtimes_by_file[fpath] = mtime
     return mtimes_by_file
 
 
-def fpath_to_module_name(s: str) -> str:
-    """
-    Turn a file path into a python import path (?)
-    """
-    s = s.lstrip('./')
-
-    if s.endswith('.py'):
-        s = s[:-len('.py')]
-
-    if s.endswith('/__init__'):
-        s = s[:-len('/__init__')]
-
-    return s.replace('/', '.')
+# def run_task():
+#     print(dt.utcnow().isoformat(sep=' '), use_thing_from_both(), end='\n' * 2)
 
 
-def test_fpath_to_module():
-    assert fpath_to_module_name('./models/b/__init__.py') == 'models.b'
-    assert fpath_to_module_name('models') == 'models'
-    assert fpath_to_module_name('models/b/c.py') == 'models.b.c'
-    assert fpath_to_module_name('models.b.c') == 'models.b.c'
+def run_task():
+    import pytest
+    os.system('clear')
+    pytest.main(args=[], plugins=None)
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def temp_cwd(s):
+    import os
+
+    old_dir = os.getcwd()
+    try:
+        os.chdir(s)
+        yield
+    finally:
+        os.chdir(old_dir)
 
 
 def main():
     # root should be e.g. money-srv/src or something
     import sys
-    import os
 
-    root = '.' if len(sys.argv) == 1 else sys.argv[1]
-    os.chdir(root)
-
+    # _, src_root = sys.argv
+    src_root = '.'
 
     old_mtimes = {}
 
     try:
         while True:
-            new_mtimes = get_mtimes('.')
+            new_mtimes = get_mtimes(src_root)
 
             # have any files been updated?
             changed_fps = [
-                fp
-                for fp, mtime in new_mtimes.items()
-                if mtime != old_mtimes.get(fp)
+                fp for fp, mtime in new_mtimes.items() if mtime != old_mtimes.get(fp)
             ]
 
             # reload the modules for any updated files
             if changed_fps:
-                for fp in changed_fps:
-                    module_name = fpath_to_module_name(fp)
-                    module = import_module(module_name)
-                    reload(module)
+                with temp_cwd(src_root):
+                    for fp in changed_fps:
+                        module_name = fpath_to_module_name(fp)
+                        module = import_module(module_name)
+                        reload(module)
+
                 old_mtimes = new_mtimes
 
                 # re-run whatever our task is
-                print(dt.utcnow().isoformat(sep=' '), use_thing_from_both(), end='\n'*2)
+                run_task()
 
             # zzz
-            sleep(.2)
+            sleep(.5)
     except Exception as err:
+        print(err)
         breakpoint()
+        print(42)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
